@@ -1,0 +1,21 @@
+【BSD 3-Clause License】
+hsperror_patch32.dll
+hsperror_patch64.dll
+hspint64.dll
+hspint64.hs
+hspint64.as
+hsperror_patch32.as
+hsperror_patch64.as
+
+【Apache Lisence 2.0】
+OpenCvSharpExtern32.dll
+OpenCvSharpExtern64.dll
+OpenCvSharpExtern32.pdb
+OpenCvSharpExtern64.pdb
+OpenCvSharpExtern.hs
+OpenCvSharpExtern32.as
+OpenCvSharpExtern32_Args.as
+OpenCvSharpExtern32_MakeArgs.as
+OpenCvSharpExtern64.as
+OpenCvSharpExtern64_Args.as
+OpenCvSharpExtern64_MakeArgs.as
