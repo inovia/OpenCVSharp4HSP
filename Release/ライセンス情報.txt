@@ -6,6 +6,7 @@ hspint64.hs
 hspint64.as
 hsperror_patch32.as
 hsperror_patch64.as
+hspcv4_32.as
 
 【Apache Lisence 2.0】
 OpenCvSharpExtern32.dll
