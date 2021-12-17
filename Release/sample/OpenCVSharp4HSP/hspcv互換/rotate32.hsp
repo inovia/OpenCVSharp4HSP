@@ -1,0 +1,16 @@
+#include "hspcv4_32.as"
+
+// hspcv
+cvload "..\\hspcv\\bgsamp.jpg",0
+cvbuffer 1,640,480
+
+repeat 360
+	cvcopy 0,0,0,1
+	cvrotate cnt+1,1,0,0,,1
+	cvgetimg 1
+	redraw
+	await 20
+loop
+
+title "OK"
+stop

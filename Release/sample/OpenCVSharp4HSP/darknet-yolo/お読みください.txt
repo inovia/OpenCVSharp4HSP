@@ -1,0 +1,12 @@
+本サンプルを実行するには、以下のファイルが必要です。
+事前にダウンロードして、本フォルダ内に保存しておいてください。
+
+事前にトレーニングされたYOLOウェイトファイル（237 MB）
+https://pjreddie.com/media/files/yolov3.weights
+
+YOLO構成ファイル
+https://opencv-tutorial.readthedocs.io/en/latest/_downloads/10e685aad953495a95c17bfecd1649e5/yolov3.cfg
+
+---
+このサンプルは以下サイトの移植になります。
+https://opencv-tutorial.readthedocs.io/en/latest/yolo/yolo.html

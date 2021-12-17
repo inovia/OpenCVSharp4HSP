@@ -1,0 +1,163 @@
+; float for HSP モジュール
+; http://spn.php.xdomain.jp/hsp_koneta3.htm
+
+#module
+#defcfunc todouble int p1
+	temp = 0.0
+	lpoke temp, 4, (p1 & 0x80000000) | (((p1 & 0x7fffffff) >> 3) + ((p1 & 0x7fffffff) ! 0) * 0x38000000)
+	lpoke temp, 0, p1 << 29
+	return temp
+
+#defcfunc tofloat double p1
+	temp = p1
+	return lpeek(temp)>>29&7|(p1<0)<<31|lpeek(temp,4)-(p1!0)*0x38000000<<3
+
+#define global ctype	fadd(%1, %2)	tofloat(todouble(%1) + todouble(%2))
+#define global ctype	fsub(%1, %2)	tofloat(todouble(%1) - todouble(%2))
+#define global ctype	fmul(%1, %2)	tofloat(todouble(%1) * todouble(%2))
+#define global ctype	fdiv(%1, %2)	tofloat(todouble(%1) / todouble(%2))
+#define global ctype	fneg(%1)	((%1) ^ 0x80000000)
+#global
+
+#include "hsperror_patch32.as"
+#include "OpenCvSharpExtern32.as"
+
+#define DNN_BACKEND_OPENCV		3
+#define IMREAD_MODES_COLOR 		1
+
+#uselib "user32.dll"
+#func SetProcessDPIAware "SetProcessDPIAware"
+
+	// 高DPI対応
+	SetProcessDPIAware
+	screen 0
+
+	// OpenCV内部ではエラー時に例外を送出するようになっています。
+	// OpenCV内部の例外をキャッチしたときは、例外情報を取得できるように
+	hsperror_patch_Register
+
+	notesel classnames
+	noteload "coco.names"
+	
+	pNet = 0
+	dnn_readNetFromDarknet_Windows "yolov3.cfg", "yolov3.weights", pNet
+	dnn_Net_setPreferableBackend pNet, DNN_BACKEND_OPENCV
+
+	vector_int32_new1
+	pOutLayers = stat
+	dnn_Net_getUnconnectedOutLayers pNet, pOutLayers	// 出力がつながっていないレイヤーのインデックス
+	
+	vector_string_new1
+	pLayersNames = stat
+	dnn_Net_getLayerNames pNet, pLayersNames			// レイヤー名取得
+	
+	vector_string_getSize pLayersNames
+	nLayersNamesSize = stat
+	dim ppLayersNames, nLayersNamesSize
+	dim ppLayersNamesLength, nLayersNamesSize
+	vector_string_getElements pLayersNames, varptr(ppLayersNames), ppLayersNamesLength
+
+	vector_int32_getSize pOutLayers
+	nOutLayersSize = stat
+	vector_int32_getPointer pOutLayers
+	ppOutLayers = stat
+	dupptr outLayers, ppOutLayers, 4 * nOutLayersSize, 4
+
+	dim ppStr, nOutLayersSize
+	repeat nOutLayersSize
+		idx = outLayers(cnt) - 1
+		pStr = ppLayersNames(idx)
+		pStrLength = ppLayersNamesLength(idx)
+		ppStr(cnt) = pStr
+	loop
+
+	dialog "png|gif|jpg|bmp", 16,"PNG|GIF|JPG|BMP"
+	if stat == 0 : end
+	fname = refstr
+	
+	pImg = 0
+	imgcodecs_imread_Windows fname, IMREAD_MODES_COLOR, pImg
+
+	core_Mat_rows pImg, imgHeight	// 元の画像高
+	core_Mat_cols pImg, imgWidth	// 元の画像幅
+
+	// RGB各要素を 
+	// 0 ～ 255 -> 0.0 ～ 1.0 floatで管理
+	// BLOBは 4次元配列（images, channels, width, height） -> 1, 3, 608, 608 の配列
+	pBlobMat = 0
+	dnn_blobFromImage pImg, 1.0 / 255.0, MAKEARGS_SIZE(608, 608), MAKEARGS_SCALAR(0, 0, 0, 0), 1, 0, pBlobMat
+
+	dnn_Net_setInput pNet, pBlobMat, ""
+	
+	dim ppOutput, nOutLayersSize
+	repeat nOutLayersSize
+		core_Mat_new1 mat
+		ppOutput(cnt) = mat
+	loop
+
+	dnn_Net_forward3 pNet, varptr(ppOutput), nOutLayersSize, ppStr, nOutLayersSize
+
+	dim text_x
+	dim text_y
+	sdim text_str, 64
+
+	detect_count = 0
+
+	repeat nOutLayersSize
+
+		pOutput = ppOutput(cnt)
+		
+		core_Mat_sizeAt pOutput, 0, sizeat
+		repeat sizeat
+		
+			// １つ抜いてみる
+			pPtr1 = 0
+			idxs = cnt, 0, 0, 0
+			core_Mat_ptrnd pOutput, idxs, pPtr1
+		
+			dupptr detection, pPtr1, 85*4, 4
+
+			ddim dBox, 4
+			class_id = -1
+			class_confidence_max = 0.0
+			repeat 80
+				class_confidence = todouble(detection(cnt + 5))
+				if (class_confidence_max < class_confidence) {
+					class_confidence_max = class_confidence
+					class_id = cnt
+					dBox = todouble(detection(0)), todouble(detection(1)), todouble(detection(2)), todouble(detection(3))
+				}
+			loop
+			if ( class_id == -1 ) : continue		// みつからない
+
+			if ( 0.5 <= class_confidence_max) {
+				
+				// 元の画像の矩形を計算する
+				centerX = int( dBox(0) *  imgWidth )
+				centerY = int( dBox(1) *  imgHeight )
+				nWidth  = int( dBox(2) *  imgWidth )
+				nHeight = int( dBox(3) *  imgHeight )
+				nLeft   = centerX - nWidth / 2
+				nTop    = centerY - nHeight / 2
+
+				noteget classname, class_id
+
+				mes strf("ID: %d, Name: %s, Conf: %f, L: %d T: %d, W: %d, H: %d", class_id, classname, class_confidence_max, nLeft, nTop, nWidth, nHeight)
+
+				txt = strf("Name: %s, Conf: %f", classname, class_confidence_max)
+				imgproc_rectangle_Mat_Rect pImg, MAKEARGS_RECT(nLeft, nTop, nWidth, nHeight), MAKEARGS_SCALAR(255, 0, 0, 255), 4, 0, 0
+
+				text_x(detect_count) = nLeft
+				text_y(detect_count) = nTop
+				text_str(detect_count) = txt
+				
+				detect_count++
+			}
+		
+		loop
+
+	loop
+
+	highgui_imshow "results", pImg
+
+stop
